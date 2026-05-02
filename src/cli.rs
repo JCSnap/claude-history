@@ -171,6 +171,18 @@ pub struct Args {
     )]
     pub debug_search: Option<String>,
 
+    /// Select which Claude account/config directory to read history from.
+    ///
+    /// Names map to `~/.claude-<NAME>`, except `default` (or `1`) which maps to `~/.claude`.
+    /// For an explicit path, pass an absolute path instead.
+    #[arg(
+        long,
+        short = 'A',
+        value_name = "NAME",
+        help = "Claude account to read history from (e.g. 'default', '2', or an absolute path to a config dir)"
+    )]
+    pub account: Option<String>,
+
     /// Input JSONL file to view directly (skips conversation selection)
     #[arg(
         value_name = "FILE",

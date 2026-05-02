@@ -35,6 +35,40 @@ fn main() {
     }
 }
 
+/// Resolve an --account value into an absolute config directory path.
+///
+/// - Absolute paths are used as-is.
+/// - `default` or `1` map to `~/.claude`.
+/// - Any other name `N` maps to `~/.claude-N`.
+fn resolve_account_dir(account: &str) -> Result<PathBuf> {
+    let trimmed = account.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "--account cannot be empty",
+        )));
+    }
+
+    let path = Path::new(trimmed);
+    if path.is_absolute() {
+        return Ok(path.to_path_buf());
+    }
+
+    let home = home::home_dir().ok_or_else(|| {
+        AppError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Could not determine home directory",
+        ))
+    })?;
+
+    let dir = if trimmed.eq_ignore_ascii_case("default") || trimmed == "1" {
+        home.join(".claude")
+    } else {
+        home.join(format!(".claude-{}", trimmed))
+    };
+    Ok(dir)
+}
+
 /// Helper function to resolve a boolean setting by merging CLI flags and config values.
 ///
 /// Priority: enable_flag > disable_flag > config_value > default_value
@@ -61,6 +95,16 @@ fn run() -> Result<()> {
         return match command {
             Commands::Update => update::run(),
         };
+    }
+
+    // Resolve --account into CLAUDE_CONFIG_DIR so the rest of the code reads
+    // history from the right directory. Done before any history access.
+    if let Some(ref account) = args.account {
+        let dir = resolve_account_dir(account)?;
+        // SAFETY: single-threaded; runs before any threads are spawned.
+        unsafe {
+            std::env::set_var("CLAUDE_CONFIG_DIR", &dir);
+        }
     }
 
     // Detect terminal theme before entering raw mode / alternate screen,
